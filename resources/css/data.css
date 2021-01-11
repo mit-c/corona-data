@@ -5,7 +5,35 @@
 
 body {
     font-family: Archivo, sans-serif;
+    background-color: rgb(0, 0, 0);
+    color: orange;
 }
 
+#TODO {
+    color: yellow;
+    font-style: italic;
+    font-weight:750;
+    font-size: small;
+}
+
+#header {
+    font-size: xx-large;
+    font-weight: bold;
+}
+
+.row {
+    width: 100%;
+    size: relative;
+    
+}
+
+
+
+.column {
+    float: left;
+    width: 48%;
+    padding: 1px;
+    size: relative;
+}
 
 

@@ -1,0 +1,23 @@
+{
+    "name": "node-ex-website",
+    "version": "1.0.0",
+    "description": "",
+    "scripts": {
+        "start": "node server.js",
+        "build": "browserify resources/scripts/functions.js -o resources/scripts/bundle.js",
+        "launch": "start chrome ./user-data/data.html",
+        "execute": "npm run build && npm run launch"
+    },
+    "dependencies": {
+        "@tensorflow/tfjs": "^2.8.3",
+        "JSONStream": "^1.3.5",
+        "arrayify-merge.s": "^0.1.2",
+        "express": "^4.17.1",
+        "inspect-stream": "^0.1.0",
+        "plotly": "^1.0.6",
+        "scikit-learn": "^0.1.0",
+        "slice-flow.s": "^0.1.0",
+        "streaming-json-stringify": "^3.1.0",
+        "timeseries-analysis": "^1.0.12"
+    }
+}
