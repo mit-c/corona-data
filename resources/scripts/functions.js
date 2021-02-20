@@ -345,10 +345,12 @@ function findNonZero(dates, metric)
     return 0;
 }
 
+/*
 function onBatchEnd(batch, logs) 
 {
     console.log('Logs', logs);
 }
+
 
 async function buildFeatures(dates,metric)
 {
@@ -475,6 +477,8 @@ async function buildFeatures(dates,metric)
     Plotly.newPlot(div, data);
     
 }
+*/
+
 
 function dateRange(startDate, endDate, steps = 1) 
 {
@@ -505,9 +509,10 @@ function formatDate(date) {
     return [year, month, day].join('-');
 }
 
-function forecast(dates,metric,forecastDays)
+function forecast(dates,metric,forecastDays, degree, windowSize)
 {
     // this function works for any timestep if dates are omitted.
+ 
     var latestDate = new Date(dates[0]);
     latestDate.setUTCDate(latestDate.getUTCDate() + 1);
    
@@ -517,7 +522,7 @@ function forecast(dates,metric,forecastDays)
     var datesToAdd = dateRange(latestDate,forecastToDate, 1);
     
     var data = [];
-    var N = dates.length
+    var N = dates.length; // N is essentially the window size.
     
     for(var i = 0; i<N; i++)
     {
@@ -525,15 +530,19 @@ function forecast(dates,metric,forecastDays)
     }
     
     var t = new ts.main(data);
+    t.smoother({period: 20});
+
     
-    console.log(t.chart())
+
+
+
+
     for(var i =0; i<forecastDays; i++)
     {
         t.data.push([datesToAdd[i],0]);
     }
 
-    
-    console.log(t.chart())
+
     
     
 
@@ -541,11 +550,16 @@ function forecast(dates,metric,forecastDays)
     var L = t.data.length;
     
     var startIx, endIx;
-    var degree = 5;
+    
+    if(degree >= windowSize)
+    {
+        throw new Error("degree must be greater than window size")
+    }
     console.log("N",N)
+    // startIx = realdata.length - N 
     for(var i=0; i<forecastDays; i++)
     {
-        startIx = i;
+        startIx = N-windowSize+i;
         endIx = i+N; // say N = 300 when i=0 this is 301
         var coeffData
         if(endIx == L) // I don't know how to make this nicer - splice is just strange.
@@ -556,10 +570,10 @@ function forecast(dates,metric,forecastDays)
             coeffData = t.data.slice(startIx,endIx);
             coeffs = t.ARMaxEntropy({data : coeffData, degree:degree});
         }
-        console.log("coeffData",coeffData);
+    
         
         var forecast = 0;
-        console.log("start inputing into data","predicting", N+i)
+      
         for(var j=0; j<coeffs.length;j++)
         {
             // 10 represents the datapoint before the one we are trying to predict.
@@ -567,10 +581,9 @@ function forecast(dates,metric,forecastDays)
             // Then we go to earlier times
             // So in this cases our -i is +j
             dataPointTest = t.data[N-1+i-j][1]
-            console.log("dataPointTest",dataPointTest)
             forecast -= dataPointTest*coeffs[j]; // check
         }
-        console.log("forecast", forecast)
+   
         t.data[N+i][1] = forecast;
         
         //console.log(t.data);
@@ -588,8 +601,8 @@ function forecast(dates,metric,forecastDays)
         outMetric.push(t.data[i][1]);
     }
     
-    var forecastDates = outDates.slice(-forecastDays-1);
-    var forecastMetric = outMetric.slice(-forecastDays-1);
+    var forecastDates = outDates.slice(-forecastDays-1).reverse();
+    var forecastMetric = outMetric.slice(-forecastDays-1).reverse();
   
     var div = document.getElementById("t7");
     data = [
@@ -607,10 +620,33 @@ function forecast(dates,metric,forecastDays)
     
     Plotly.newPlot(div, data);
     
-    return [outDates.slice(0,forecastDays), outMetric.slice(0,forecastDays)];
+    return [forecastDates, forecastMetric];   
+}
 
+function findBestSettings(dates, metric, maxPercent)
+{
+  // this function works for any timestep if dates are omitted.  
+  var data = [];
+  var N = dates.length; // N is essentially the window size.
+  
+  for(var i = 0; i<N; i++)
+  {
+      data.unshift([dates[i],metric[i]])
+  }
+  
+  var t = new ts.main(data);
+  t.smoother({period: 20});
 
-   
+  var config = t.regression_forecast_optimize({maxPct: maxPercent});
+  var degree = config.degree;
+  var windowSize = config.windowSize;
+  return [degree, windowSize];
+}
+
+function fullForecast(dates, metric, forecastDays,maxPercent=0.3)
+{
+    [degree, windowSize] = findBestSettings(dates, metric,maxPercent);
+    return forecast(dates,metric,forecastDays,degree,windowSize)
 }
 
 function ema(dates,metric, windowSize, smoothing=2) 
@@ -809,10 +845,12 @@ function main() {
         var div5 = document.getElementById("t5");
         var title5 = "Hospital admissions per day";
         var metricName5 = "Daily admissions";
-        [arimaDates,arimaMetric] = forecast(dates["ventilators"].slice(0),metrics["ventilators"].slice(0),14); // need to implement this prediction in plot I think.
-        console.log(arimaDates,arimaMetric);
+        var dates5 = dates["admissionsD"];
+        var metric5 = metrics["admissionsD"];
+
+        [forecastDates5, forecastMetric5] = fullForecast(dates5,metric5,100,0.3);
         var div6 = document.getElementById("t6");
-        plot(div6,arimaDates,arimaMetric,7,7,"arimaPredictAdmissions","admissions")
+        plot(div6,forecastDates5,forecastMetric5,7,7,"arimaPredictAdmissions","admissions")
         
         plot(div5, dates["admissionsD"], metrics["admissionsD"], windowSize, windowSize, title5, metricName5);
         
