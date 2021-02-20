@@ -30,8 +30,10 @@ var slice    = require('slice-flow.s');
 var sk = require('scikit-learn');
 var tf = require('@tensorflow/tfjs');
 var ts = require('timeseries-analysis');
+const fs = require('browserify-fs');
 const { SSL_OP_SSLEAY_080_CLIENT_DH_BUG } = require('constants');
-
+const { settings } = require('cluster');
+const path = require('path');
 const buildFilters = (filters) =>{
     return filters.join(";");
 };
@@ -139,13 +141,51 @@ function sma(dates, quantityArray, windowSize)
   
 }
 
-function plot(div, dates, metricToPlot, windowSize,emaWindowSize, titleName, metricName, forecastDays)
+function plot(div,dataPairSelected, windowSize,emaWindowSize, titleName, metricName, forecastDays)
 {
+    var dates = dataPairSelected["dates"];
+    var metricToPlot = dataPairSelected["metrics"];
+    var degree;
+    var sampleSize;
+    if(dataPairSelected.hasOwnProperty("sampleSize"))
+    {
+        sampleSize = dataPairSelected["windowSize"]; // unfortunate clash with variable name.
+    } else {
+        sampleSize = dataPairSelected["dates"].length; 
+    }
+    if(dataPairSelected.hasOwnProperty("degree"))
+    {
+        degree = dataPairSelected["degree"];
+    } else{
+        degree = Math.min(sampleSize -1 , 20);
+    }
+    
+    // using the sampleSize because as we are forecasting I think more data is just better.
+    // The proportion of data we know is valid is higher.
+    var [forecastDates, forecastArray] = forecast(dates,metricToPlot,forecastDays,degree,sampleSize);
+    var tmpDates = forecastDates.slice(0,-1);
+    var tmpMetric = forecastArray.slice(0,-1); // remove repeated value.
+    var concatDates = tmpDates.concat(dates);
+    var concatMetric = tmpMetric.concat(metricToPlot);
+    var [smaDates, smaArray] = sma(concatDates,concatMetric, windowSize);
+    var [emaDates,emaArray] = ema(concatDates, concatMetric, emaWindowSize);
+    
+    
+    var shift = Math.floor(windowSize/2);
+ 
+    var movingDates = smaDates.slice(forecastDays-shift);
+    var movingArray = smaArray.slice(forecastDays-shift);
 
-    var [movingDates, movingArray] = sma(dates,metricToPlot, windowSize);
-    var [emaMovingDates,emaMovingArray] = ema(dates, metricToPlot, emaWindowSize);
+    var smaForecastDates = smaDates.slice(0,forecastDays-shift+1);
+    var smaForecastArray = smaArray.slice(0,forecastDays-shift+1);
 
-  
+    var emaMovingDates = emaDates.slice(forecastDays);
+    var emaMovingArray = emaArray.slice(forecastDays);
+
+    var emaForecastDates = emaDates.slice(0,forecastDays+1);
+    var emaForecastArray = emaArray.slice(0,forecastDays+1);
+
+    
 
     var dataToPlot = [
         {
@@ -154,9 +194,23 @@ function plot(div, dates, metricToPlot, windowSize,emaWindowSize, titleName, met
             type: "bar",
             name: metricName,
             marker: {
-                color: "#2EE092"
-            }
+                color: "#004c6d"
+            },
+         
         },
+        /*
+        {
+            x: forecastDates.slice(0,-1),
+            y: forecastArray.slice(0,-1),
+            name: forecastDays.toString() + "-day forecast",
+            type: "bar",
+            marker: {
+                color: "#0075a8",
+            },
+           
+            
+        },
+        */
         {
             x: movingDates,
             y: movingArray,
@@ -177,7 +231,35 @@ function plot(div, dates, metricToPlot, windowSize,emaWindowSize, titleName, met
             line: {
                 color: "red"
             }
-        }
+        },
+        {
+            x: smaForecastDates,
+            y: smaForecastArray,
+            type: "scatter",
+            name: "SMA forecast",
+            mode: "markers",
+            marker: {
+                color: "orange",
+                size: 2,
+                opacity: 0.5
+            }
+        },
+        {
+            x: emaForecastDates,
+            y: emaForecastArray,
+            type: "scatter",
+            name: "EMA forecast",
+            mode: "markers",
+            marker: {
+                color: "red",
+                size: 2,
+                opacity: 0.5,
+            
+            }
+        },
+
+
+
     ];
 
     var layout = {
@@ -188,6 +270,7 @@ function plot(div, dates, metricToPlot, windowSize,emaWindowSize, titleName, met
             color: "white"
 
         },
+       
         title: {
             text: "<b>"+titleName+"<b>",
             font: {
@@ -219,7 +302,10 @@ function plot(div, dates, metricToPlot, windowSize,emaWindowSize, titleName, met
             y: 0.99,
             yanchor: "top",
             bgcolor: "transparent"
-        }
+        },
+     
+        
+        
     };
     
     
@@ -249,18 +335,21 @@ function extractMultMetrics(metricArrays, metricNames)
     var dateKeys = Object.keys(metricArrays);
     var dates = dateKeys.map((v)=> v);
     var storage = {};
-    storage["dates"]={};
-    storage["metrics"]={};
+
     metricNames.forEach(metricName => {
 
         
         var metric = extractMetric(metricArrays,metricName);
     
         var [newDates,newMetric] = removeZeros(dates,metric);
+        storage[metricName] = {};
+        
+        storage[metricName]["dates"] = newDates;
+        storage[metricName]["metrics"] = newMetric; 
+    });
 
-        storage["dates"][metricName] = newDates;
-        storage["metrics"][metricName] = newMetric; 
-    })
+
+
     return storage
 }
 
@@ -530,7 +619,7 @@ function forecast(dates,metric,forecastDays, degree, windowSize)
     }
     
     var t = new ts.main(data);
-    t.smoother({period: 20});
+    t.smoother({period: 25});
 
     
 
@@ -618,7 +707,7 @@ function forecast(dates,metric,forecastDays, degree, windowSize)
         }   
     ];
     
-    Plotly.newPlot(div, data);
+    //Plotly.newPlot(div, data);
     
     return [forecastDates, forecastMetric];   
 }
@@ -626,9 +715,8 @@ function forecast(dates,metric,forecastDays, degree, windowSize)
 function findBestSettings(dates, metric, maxPercent)
 {
   // this function works for any timestep if dates are omitted.  
-  var data = [];
   var N = dates.length; // N is essentially the window size.
-  
+  data = [];
   for(var i = 0; i<N; i++)
   {
       data.unshift([dates[i],metric[i]])
@@ -639,13 +727,13 @@ function findBestSettings(dates, metric, maxPercent)
 
   var config = t.regression_forecast_optimize({maxPct: maxPercent});
   var degree = config.degree;
-  var windowSize = config.windowSize;
+  var windowSize = config.sample;
   return [degree, windowSize];
 }
 
 function fullForecast(dates, metric, forecastDays,maxPercent=0.3)
 {
-    [degree, windowSize] = findBestSettings(dates, metric,maxPercent);
+    var [degree, windowSize] = findBestSettings(dates, metric,maxPercent);
     return forecast(dates,metric,forecastDays,degree,windowSize)
 }
 
@@ -697,6 +785,51 @@ function ema(dates,metric, windowSize, smoothing=2)
     return [newDates, outMetric]
 }
 
+function download(filename, text) {
+    var element = document.createElement('a');
+    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+    element.setAttribute('download', filename);
+  
+    element.style.display = 'none';
+    document.body.appendChild(element);
+  
+    element.click();
+  
+    document.body.removeChild(element);
+  }
+
+
+function findAllBestSettings(dataPairs, maxPct)
+{
+    var settings = {}
+    var L = Object.keys(dataPairs).length;
+    var i = 0;
+    console.log(L + " metrics to process")
+    for(metricName in dataPairs) {
+        var progress = 100*i/L;
+        console.log(progress + "%");
+        i++;
+        var metric = dataPairs[metricName]["metrics"];
+        var date = dataPairs[metricName]["dates"];
+        var [degree, windowSize] = findBestSettings(date,metric,maxPct);
+        settings[metricName] = {};
+        settings[metricName]["degree"] = degree;
+        settings[metricName]["windowSize"] = windowSize;
+    };
+    const settingStore = JSON.stringify(settings);
+    console.log(settings);
+    return settingStore;
+}
+
+function inputConfig(dataPairs,config)
+{
+    fullData = dataPairs
+    Object.keys(config).forEach((metricName) => {
+        fullData[metricName]["degree"] = config[metricName]["degree"];
+        fullData[metricName]["windowSize"] = config[metricName]["windowSize"];
+    })
+    return fullData;
+}
 
 function main() {
     
@@ -732,7 +865,8 @@ function main() {
         cumulativeByAge: "cumAdmissionsByAge",
         ventilators: "covidOccupiedMVBeds",
         cases: "hospitalCases",
-        capacity: "plannedCapacityByPublishDate"
+        capacity: "plannedCapacityByPublishDate",
+        //vaccineD: "cumPeopleVaccinatedFirstDoseByPublishDate"
     };
     
 
@@ -745,10 +879,9 @@ function main() {
                         "pOneD", "pOneC", "pTwoD",
                         "pTwoC", "pThreeD", "pThreeC",
                         "pFourD", "pFourC" ,"ventilators",
-                        "admissionsD", "admissionsC"]; 
+                        "admissionsD", "admissionsC",];
 
-    
-
+    // No vacinne data  available sad.
     (async function () {
         
         var result = await getData(url);
@@ -760,7 +893,7 @@ function main() {
     
 
         var metricArrays = new Map();
-        for(var i = 1; i<data.length; i++) // start at 1 to avoid incomplete data.
+        for(var i = 0; i<data.length; i++) // start at 1 to avoid incomplete data.
         {
             day = data[i]
             var todaysDate = day.date; // this is the date for each entry in our array.
@@ -793,8 +926,8 @@ function main() {
         var dateKeys = Object.keys(metricArrays);
         var oldDates = dateKeys.map((v)=> v);
 
-        var dataPairs = extractMultMetrics(metricArrays, metricNames);
-        
+        var dataPairs = extractMultMetrics(metricArrays, metricNames); // structure is dataPairs[metric][dates/metrics]
+        console.log(dataPairs)
         // normalised cases is casesD / testsD or 0 if testsD is 0
         var casesD = extractMetric(metricArrays, "casesD"); // note data pairs will have different length arrays so have to use this fn.
         var testsD = extractMetric(metricArrays, "testsD");
@@ -808,61 +941,72 @@ function main() {
             //console.log(normCase)
             normCases.push(normCase);
         }
-        [dataPairs["dates"]["normalisedCasesD"], dataPairs["metrics"]["normalisedCasesD"]] = removeZeros(oldDates, normCases);
+        dataPairs["normalisedCasesD"] = {};
+        dataPairs["normalisedCasesD"] = {};
+        [dataPairs["normalisedCasesD"]["dates"], dataPairs["normalisedCasesD"]["metrics"]] = removeZeros(oldDates, normCases);
         
+         // *** 
 
-
-
-        // *** 
-        var dates = dataPairs["dates"]
-        var metrics = dataPairs["metrics"];
+        // **** THESE LINES CAUSE WEBPAGE TO TAKE AGES TO LOAD
+        // **** configStr should be loaded from "settings.json" download.
+        //var forecastSettings = findAllBestSettings(dataPairs,0.1); // creates download to file which has stringifyed json in.
+        //download("settings.json",forecastSettings);
+        // ****
+        // ****
         
-        var windowSize = 25;
+        
+        const config = {"casesD":{"degree":21,"windowSize":95},"casesC":{"degree":10,"windowSize":105},"deathsD":{"degree":10,"windowSize":81},"deathsC":{"degree":7,"windowSize":124},"testsD":{"degree":15,"windowSize":89},"testsC":{"degree":12,"windowSize":95},"pOneD":{"degree":8,"windowSize":94},"pOneC":{"degree":31,"windowSize":91},"pTwoD":{"degree":10,"windowSize":81},"pTwoC":{"degree":17,"windowSize":100},"pThreeD":{"degree":14,"windowSize":71},"pThreeC":{"degree":34,"windowSize":83},"pFourD":{"degree":14,"windowSize":81},"pFourC":{"degree":31,"windowSize":102},"ventilators":{"degree":5,"windowSize":39},"admissionsD":{"degree":7,"windowSize":37},"admissionsC":{"degree":79,"windowSize":115},"normalisedCasesD":{"degree":74,"windowSize":98}};
+        var dataFull = inputConfig(dataPairs, config) 
+        console.log(dataFull);
+        var windowSize = 14;
         var title = "Tests per day"; //Deaths per day within 28 days of positive test";
         var metricName = "Tests per day";
         var div = document.getElementById("t1");
-        
-        plot(div, dates["testsD"], metrics["testsD"], windowSize,windowSize, title, metricName);
+        var forecastDays = 50;
+        plot(div, dataFull["testsD"], windowSize,windowSize, title, metricName,forecastDays);
         
         var title2 = "New cases per day";
         var metricName2 = "Cases per day";
 
         var div2 = document.getElementById("t2");
-        plot(div2,dates["casesD"],metrics["casesD"],windowSize,windowSize, title2, metricName2);
+        plot(div2,dataFull["casesD"],windowSize,windowSize, title2, metricName2,forecastDays);
        
         var div3 = document.getElementById("t3");
         var title3 = "Cases per test per day";
         var metricName3 = "Normalised cases per day";
-        plot(div3,dates["normalisedCasesD"],metrics["normalisedCasesD"],windowSize, windowSize, title3, metricName3);
+        plot(div3,dataFull["normalisedCasesD"],windowSize, windowSize, title3, metricName3,forecastDays);
 
 
 
         var div4 = document.getElementById("t4");
         var title4 = "People on ventilators per day";
         var metricName4 = "Daily ventilators";
-        plot(div4, dates["ventilators"], metrics["ventilators"],windowSize,windowSize, title4, metricName4)
+        plot(div4, dataFull["ventilators"],windowSize,windowSize, title4, metricName4,forecastDays)
         
         var div5 = document.getElementById("t5");
         var title5 = "Hospital admissions per day";
         var metricName5 = "Daily admissions";
-        var dates5 = dates["admissionsD"];
-        var metric5 = metrics["admissionsD"];
+  
 
-        [forecastDates5, forecastMetric5] = fullForecast(dates5,metric5,100,0.3);
-        var div6 = document.getElementById("t6");
-        plot(div6,forecastDates5,forecastMetric5,7,7,"arimaPredictAdmissions","admissions")
+        plot(div5, dataFull["admissionsD"], windowSize, windowSize, title5, metricName5,forecastDays);
         
-        plot(div5, dates["admissionsD"], metrics["admissionsD"], windowSize, windowSize, title5, metricName5);
+        var div6 = document.getElementById("t6");
+        var title6= "Daily complete vaccinations";
+        var metricName6 = "Daily vaccinations";
+        //plot(div6,dataFull["vaccinesD"],windowSize,windowSize,title6,metricName6,3)
+   
+        
+        
+        
+
         
        
     })()
-
-    var store = {name: "tim", name: "tom"};
    
 
 
 }
-// This is a comment
+
 main();
 
 
