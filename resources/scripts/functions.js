@@ -804,7 +804,7 @@ function findAllBestSettings(dataPairs, maxPct)
     var settings = {}
     var L = Object.keys(dataPairs).length;
     var i = 0;
-    console.log(L + " metrics to process")
+    console.log(L + " metrics to process");
     for(metricName in dataPairs) {
         var progress = 100*i/L;
         console.log(progress + "%");
@@ -829,6 +829,48 @@ function inputConfig(dataPairs,config)
         fullData[metricName]["windowSize"] = config[metricName]["windowSize"];
     })
     return fullData;
+}
+
+function fullPlot(dataFull, windowSize) { 
+
+    var title = "Tests per day"; //Deaths per day within 28 days of positive test";
+    var metricName = "Tests per day";
+    var div = document.getElementById("t1");
+    var forecastDays = 50;
+    plot(div, dataFull["testsD"], windowSize,windowSize, title, metricName,forecastDays);
+    
+    var title2 = "New cases per day";
+    var metricName2 = "Cases per day";
+
+    var div2 = document.getElementById("t2");
+    plot(div2,dataFull["casesD"],windowSize,windowSize, title2, metricName2,forecastDays);
+    
+    var div3 = document.getElementById("t3");
+    var title3 = "Cases per test per day";
+    var metricName3 = "Normalised cases per day";
+    plot(div3,dataFull["normalisedCasesD"],windowSize, windowSize, title3, metricName3,forecastDays);
+
+
+
+    var div4 = document.getElementById("t4");
+    var title4 = "People on ventilators per day";
+    var metricName4 = "Daily ventilators";
+    plot(div4, dataFull["ventilators"],windowSize,windowSize, title4, metricName4,forecastDays)
+    
+    var div5 = document.getElementById("t5");
+    var title5 = "Hospital admissions per day";
+    var metricName5 = "Daily admissions";
+
+
+    plot(div5, dataFull["admissionsD"], windowSize, windowSize, title5, metricName5,forecastDays);
+    
+    var div6 = document.getElementById("t6");
+    var title6= "Daily deaths";
+    var metricName6 = "Daily deaths";
+
+    plot(div6,dataFull["deathsD"], windowSize, windowSize, title6, metricName6, forecastDays);
+    //plot(div6,dataFull["vaccinesD"],windowSize,windowSize,title6,metricName6,3)
+   
 }
 
 function main() {
@@ -955,47 +997,11 @@ function main() {
         // ****
         
         
-        const config = {"casesD":{"degree":21,"windowSize":95},"casesC":{"degree":10,"windowSize":105},"deathsD":{"degree":10,"windowSize":81},"deathsC":{"degree":7,"windowSize":124},"testsD":{"degree":15,"windowSize":89},"testsC":{"degree":12,"windowSize":95},"pOneD":{"degree":8,"windowSize":94},"pOneC":{"degree":31,"windowSize":91},"pTwoD":{"degree":10,"windowSize":81},"pTwoC":{"degree":17,"windowSize":100},"pThreeD":{"degree":14,"windowSize":71},"pThreeC":{"degree":34,"windowSize":83},"pFourD":{"degree":14,"windowSize":81},"pFourC":{"degree":31,"windowSize":102},"ventilators":{"degree":5,"windowSize":39},"admissionsD":{"degree":7,"windowSize":37},"admissionsC":{"degree":79,"windowSize":115},"normalisedCasesD":{"degree":74,"windowSize":98}};
-        var dataFull = inputConfig(dataPairs, config) 
-        console.log(dataFull);
+        const config = {"casesD":{"degree":7,"windowSize":39},"casesC":{"degree":18,"windowSize":39},"deathsD":{"degree":9,"windowSize":36},"deathsC":{"degree":11,"windowSize":36},"testsD":{"degree":13,"windowSize":33},"testsC":{"degree":11,"windowSize":33},"pOneD":{"degree":6,"windowSize":33},"pOneC":{"degree":12,"windowSize":33},"pTwoD":{"degree":11,"windowSize":31},"pTwoC":{"degree":13,"windowSize":33},"pThreeD":{"degree":4,"windowSize":27},"pThreeC":{"degree":4,"windowSize":26},"pFourD":{"degree":9,"windowSize":33},"pFourC":{"degree":12,"windowSize":33},"ventilators":{"degree":6,"windowSize":33},"admissionsD":{"degree":13,"windowSize":33},"admissionsC":{"degree":10,"windowSize":33},"normalisedCasesD":{"degree":21,"windowSize":31}};
+        var dataFull = inputConfig(dataPairs, config);
         var windowSize = 14;
-        var title = "Tests per day"; //Deaths per day within 28 days of positive test";
-        var metricName = "Tests per day";
-        var div = document.getElementById("t1");
-        var forecastDays = 50;
-        plot(div, dataFull["testsD"], windowSize,windowSize, title, metricName,forecastDays);
-        
-        var title2 = "New cases per day";
-        var metricName2 = "Cases per day";
-
-        var div2 = document.getElementById("t2");
-        plot(div2,dataFull["casesD"],windowSize,windowSize, title2, metricName2,forecastDays);
-       
-        var div3 = document.getElementById("t3");
-        var title3 = "Cases per test per day";
-        var metricName3 = "Normalised cases per day";
-        plot(div3,dataFull["normalisedCasesD"],windowSize, windowSize, title3, metricName3,forecastDays);
-
-
-
-        var div4 = document.getElementById("t4");
-        var title4 = "People on ventilators per day";
-        var metricName4 = "Daily ventilators";
-        plot(div4, dataFull["ventilators"],windowSize,windowSize, title4, metricName4,forecastDays)
-        
-        var div5 = document.getElementById("t5");
-        var title5 = "Hospital admissions per day";
-        var metricName5 = "Daily admissions";
-  
-
-        plot(div5, dataFull["admissionsD"], windowSize, windowSize, title5, metricName5,forecastDays);
-        
-        var div6 = document.getElementById("t6");
-        var title6= "Daily complete vaccinations";
-        var metricName6 = "Daily vaccinations";
-        //plot(div6,dataFull["vaccinesD"],windowSize,windowSize,title6,metricName6,3)
-   
-        
+        fullPlot(dataFull, windowSize);
+     
         
         
 
