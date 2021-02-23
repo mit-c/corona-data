@@ -16,11 +16,13 @@
         "browserify-fs": "^1.0.0",
         "express": "^4.17.1",
         "fs": "0.0.1-security",
+        "google-image-chart": "^1.2.0",
         "inspect-stream": "^0.1.0",
         "plotly": "^1.0.6",
         "scikit-learn": "^0.1.0",
         "slice-flow.s": "^0.1.0",
         "streaming-json-stringify": "^3.1.0",
-        "timeseries-analysis": "^1.0.12"
+        "tim-time-series": "^1.0.0",
+        "underscore": "^1.12.0"
     }
 }
